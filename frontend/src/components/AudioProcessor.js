@@ -1,5 +1,6 @@
 "use client";
 import React, { useCallback, useRef, useState } from "react";
+import Image from "next/image";
 import { processAudio } from "../lib/api";
 import { loadVAD, mergeFloat32, downsampleFloat32, encodeWavPCM16, rms } from "../lib/audio";
 

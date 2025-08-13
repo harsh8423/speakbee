@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import Image from "next/image";
 
 export default function DiarizationResults({ results }) {
   if (!results || !results.segments || results.segments.length === 0) {
@@ -7,7 +8,8 @@ export default function DiarizationResults({ results }) {
       <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div className="card-header">
           <h3 className="card-title">
-            📊 Diarization Results
+            <Image src="/chart.svg" alt="" width={16} height={16} />
+            Diarization Results
           </h3>
         </div>
         <div style={{ 
@@ -87,7 +89,8 @@ export default function DiarizationResults({ results }) {
       {/* Header */}
       <div className="card-header">
         <h3 className="card-title">
-          📊 Speaker Analysis
+          <Image src="/chart.svg" alt="" width={16} height={16} />
+          Speaker Analysis
         </h3>
         <div className="badge badge-primary">
           {results.segments.length} SEGMENTS

@@ -10,6 +10,11 @@ frontend/.env.development.local
 frontend/.env.test.local
 frontend/.env.production.local
 
+# Local binaries and archives
+ffmpeg-master-latest-win64-gpl/
+ffmpeg_temp/
+ffmpeg.zip
+
 # Python
 __pycache__/
 *.py[cod]

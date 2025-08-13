@@ -4,6 +4,7 @@ import { loadVAD, mergeFloat32, downsampleFloat32, encodeWavPCM16, rms } from ".
 
 export default function PushToTalk({ connected, onSend, onWarn }) {
   const [recording, setRecording] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
   const ctxRef = useRef(null);
   const srcRef = useRef(null);
   const procRef = useRef(null);
@@ -29,6 +30,14 @@ export default function PushToTalk({ connected, onSend, onWarn }) {
     proc.onaudioprocess = (ev) => {
       const ch0 = ev.inputBuffer.getChannelData(0);
       buffersRef.current.push(new Float32Array(ch0));
+      // Compute instantaneous RMS level for waveform animation
+      let sumSquares = 0;
+      for (let i = 0; i < ch0.length; i++) {
+        const v = ch0[i];
+        sumSquares += v * v;
+      }
+      const rmsLevel = Math.sqrt(sumSquares / ch0.length);
+      setAudioLevel((prev) => prev * 0.85 + rmsLevel * 0.15);
     };
     ctxRef.current = ctx; srcRef.current = src; procRef.current = proc;
     setRecording(true);
@@ -70,74 +79,75 @@ export default function PushToTalk({ connected, onSend, onWarn }) {
     const wavBuf = encodeWavPCM16(ds, 16000);
     onSend?.(wavBuf);
     setRecording(false);
+    setAudioLevel(0);
   }, [recording, onSend, onWarn]);
 
   return (
     <div style={{ textAlign: 'center' }}>
       {/* Main Voice Button */}
-      <div style={{ marginBottom: '24px' }}>
+      <div style={{ marginBottom: '24px' }} className="ptt-wrapper">
+        <div className="ptt-rings">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
         <button
           onMouseDown={startRecording}
           onMouseUp={stopRecording}
           onMouseLeave={stopRecording}
           onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
           onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
-          style={{
-            width: '160px',
-            height: '160px',
-            borderRadius: '50%',
-            border: 'none',
-            background: recording
-              ? 'linear-gradient(135deg, var(--danger) 0%, var(--danger-dark) 100%)'
-              : connected
-              ? 'var(--gradient-primary)'
-              : 'linear-gradient(135deg, var(--gray-400) 0%, var(--gray-500) 100%)',
-            color: 'white',
-            fontSize: '16px',
-            fontWeight: '700',
-            cursor: connected ? 'pointer' : 'not-allowed',
-            boxShadow: recording 
-              ? '0 0 40px rgba(239, 68, 68, 0.4), var(--shadow-xl)' 
-              : connected 
-              ? '0 0 30px rgba(0, 0, 0, 0.2), var(--shadow-lg)' 
-              : 'var(--shadow-md)',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            transform: recording ? 'scale(0.95)' : 'scale(1)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
+          className={`ptt-button-core ${recording ? 'recording' : ''}`}
           disabled={!connected}
-          className={`${recording ? 'glowing' : ''} ${connected ? 'floating' : ''}`}
+          style={{ cursor: connected ? 'pointer' : 'not-allowed' }}
         >
-          {/* Button Shine Effect */}
-          <div style={{
-            position: 'absolute',
-            top: '15%',
-            left: '15%',
-            right: '15%',
-            height: '25%',
-            background: 'rgba(255, 255, 255, 0.3)',
-            borderRadius: '50%',
-            pointerEvents: 'none',
-            opacity: recording ? 0.8 : 0.4
-          }}></div>
-          
           <div style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: '8px',
+            justifyContent: 'center',
+            height: '100%',
+            gap: 10,
             position: 'relative',
             zIndex: 1
           }}>
-            <div style={{ fontSize: '32px' }}>
-              {recording ? '🔴' : connected ? '🎤' : '⏸️'}
-            </div>
-            <div style={{ fontSize: '12px', lineHeight: '1.2', textAlign: 'center', fontWeight: '600' }}>
-              {recording ? 'RELEASE TO SEND' : connected ? 'HOLD TO TALK' : 'DISCONNECTED'}
+            <div style={{ fontSize: 28 }}>{recording ? '🔴' : '🎤'}</div>
+            <div className="ptt-label">
+              {recording ? 'Release to Send' : connected ? 'Hold to Talk' : 'Disconnected'}
             </div>
           </div>
         </button>
+      </div>
+
+      {/* Live Waveform */}
+      <div className={`waveform free colorful ${recording ? 'recording' : connected ? 'idle' : ''}`} style={{ marginBottom: 16 }}>
+        {Array.from({ length: 28 }).map((_, index) => {
+          // Shape the bar height based on current audioLevel and index falloff
+          const positionFactor = 1 - Math.abs((index - 14) / 14); // center bars taller
+          const leveled = Math.min(1, audioLevel * 3);
+          const heightPct = 8 + (leveled * 60 + positionFactor * 20);
+          // Premium colorful hue across bars
+          const totalBars = 28;
+          const hueStart = recording ? 350 : 190;
+          const hueRange = recording ? 80 : 140;
+          const hue = (hueStart + (index / (totalBars - 1)) * hueRange) % 360;
+          const saturation = 85;
+          const lightness = 55 + Math.min(10, leveled * 10);
+          const gradTop = `hsla(${hue}, ${saturation}%, ${Math.min(100, lightness + 5)}%, 1)`;
+          const gradBottom = `hsla(${(hue + 10) % 360}, ${saturation}%, ${Math.max(0, lightness - 6)}%, 1)`;
+          return (
+            <span
+              key={index}
+              className="wave-bar"
+              style={{ 
+                height: `${heightPct}%`, 
+                animationDelay: `${index * 40}ms`,
+                background: `linear-gradient(180deg, ${gradTop}, ${gradBottom})`,
+                boxShadow: `0 0 10px hsla(${hue}, ${saturation}%, 60%, ${recording ? 0.45 : 0.3})`
+              }}
+            />
+          );
+        })}
       </div>
 
       {/* Instructions Card */}

@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useConnection } from "../contexts/ConnectionContext";
@@ -9,11 +10,11 @@ export default function Layout({ children }) {
   const { connected } = useConnection();
 
   const navItems = [
-    { href: "/", label: "Dashboard", icon: "🏠" },
-    { href: "/voice-assistant", label: "Voice Assistant", icon: "🎤" },
-    { href: "/audio-analysis", label: "Audio Analysis", icon: "🎵" },
-    { href: "/speaker-management", label: "Speaker Management", icon: "👥" },
-    { href: "/results", label: "Results", icon: "📊" }
+    { href: "/", label: "Dashboard", icon: "/chart.svg" },
+    { href: "/voice-assistant", label: "Voice Assistant", icon: "/mic.svg" },
+    { href: "/audio-analysis", label: "Audio Analysis", icon: "/wave.svg" },
+    { href: "/speaker-management", label: "Speaker Management", icon: "/users.svg" },
+    { href: "/results", label: "Results", icon: "/chart.svg" }
   ];
 
   return (
@@ -22,7 +23,9 @@ export default function Layout({ children }) {
       <header className="nav-header">
         <div className="nav-container">
           <div className="nav-brand">
-            <div className="brand-icon">🐝</div>
+            <div className="brand-icon">
+              <Image src="/globe.svg" alt="speakBee" width={22} height={22} />
+            </div>
             <div className="brand-text">
               <h1>speakBee</h1>
               <p>AI Voice Intelligence</p>
@@ -37,7 +40,7 @@ export default function Layout({ children }) {
                   href={item.href}
                   className={`nav-item ${pathname === item.href ? 'active' : ''}`}
                 >
-                  <span className="nav-icon">{item.icon}</span>
+                  <span className="nav-icon"><Image src={item.icon} alt="" width={18} height={18} /></span>
                   <span className="nav-label">{item.label}</span>
                 </Link>
               ))}

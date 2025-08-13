@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Layout from "../../components/Layout";
+import Image from "next/image";
 import DiarizationResults from "../../components/DiarizationResults";
 
 export default function Results() {
@@ -27,26 +28,26 @@ export default function Results() {
     <Layout>
       <div className="page-header">
         <h1 className="page-title">
-          📊 Analysis Results
+          <Image src="/chart.svg" alt="" width={26} height={26} />
+          Analysis Results
         </h1>
         <p className="page-subtitle">
           View and manage your saved audio analysis results and speaker diarization data
         </p>
       </div>
 
-      <div className="page-content" style={{ gridTemplateColumns: '1fr 2fr', alignItems: 'start' }}>
+      <div className="page-content two-col" style={{ gridTemplateColumns: '0.9fr 1.4fr', alignItems: 'start' }}>
         {/* Saved Results List */}
-        <div className="content-section">
-          <h2 className="section-title">
-            📁 Saved Results
-          </h2>
+        <div className="content-section compact">
+          <div className="card-header compact">
+            <h2 className="card-title">
+              <Image src="/list.svg" alt="" width={18} height={18} />
+              Saved Results
+            </h2>
+          </div>
           
           {savedResults.length === 0 ? (
-            <div style={{ 
-              textAlign: 'center',
-              padding: '40px 20px',
-              color: 'var(--text-muted)'
-            }}>
+            <div className="empty-state">
               <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📊</div>
               <h4 style={{ marginBottom: '8px', color: 'var(--text-secondary)', fontWeight: '600' }}>
                 No Results Yet
@@ -56,7 +57,7 @@ export default function Results() {
               </p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="scroll-area" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 12 }}>
               {savedResults.map((result) => (
                 <div 
                   key={result.id}
@@ -103,14 +104,20 @@ export default function Results() {
           )}
 
           {/* Quick Actions */}
-          <div style={{ marginTop: '24px' }}>
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="card-header compact">
+              <h3 className="card-title">
+                <Image src="/chart.svg" alt="" width={16} height={16} />
+                Quick Actions
+              </h3>
+            </div>
             <h3 style={{ 
               fontSize: '16px', 
               fontWeight: '600', 
               marginBottom: '12px', 
               color: 'var(--text-primary)' 
             }}>
-              Quick Actions
+              
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <a href="/audio-analysis" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>
@@ -138,7 +145,9 @@ export default function Results() {
               justifyContent: 'center',
               minHeight: '400px'
             }}>
-              <div style={{ fontSize: '64px', marginBottom: '20px', opacity: 0.3 }}>📊</div>
+              <div style={{ marginBottom: '16px', opacity: 0.6 }}>
+                <Image src="/chart.svg" alt="" width={56} height={56} />
+              </div>
               <h3 style={{ 
                 marginBottom: '8px', 
                 color: 'var(--text-secondary)', 

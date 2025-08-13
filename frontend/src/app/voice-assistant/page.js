@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WS_URL } from "../../lib/api";
 import Layout from "../../components/Layout";
+import Image from "next/image";
 import PushToTalk from "../../components/PushToTalk";
 
 export default function VoiceAssistant() {
@@ -96,135 +97,102 @@ export default function VoiceAssistant() {
         </p>
       </div>
 
-      <div className="page-content" style={{ gridTemplateColumns: '1fr 2fr', alignItems: 'start' }}>
+      <div className="page-content two-col" style={{ gridTemplateColumns: '1fr 1.6fr' }}>
         {/* Voice Controls */}
         <div className="content-section">
-          <h2 className="section-title">
-            🎙️ Voice Controls
-          </h2>
+          <div className="card-header">
+            <h2 className="card-title">
+              <Image src="/mic.svg" alt="" width={18} height={18} />
+              Voice Controls
+            </h2>
+          </div>
           
           {/* Connection Status */}
-          <div style={{ marginBottom: '24px' }}>
+          <div style={{ paddingTop: 12, marginBottom: 16 }}>
             <div className={`status-indicator ${connected ? 'status-connected' : 'status-disconnected'}`}>
               <div className="pulse-dot"></div>
               {connected ? 'Connected' : 'Disconnected'}
               {speaker && <span>• {speaker}</span>}
             </div>
             
-            <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
+            <div style={{ marginTop: 12 }} className="btn-group">
               {!connected ? (
-                <button onClick={connectWs} className="btn btn-primary">
-                  Connect
-                </button>
+                <button onClick={connectWs} className="btn btn-success btn-md">Connect</button>
               ) : (
-                <button onClick={disconnectWs} className="btn btn-danger">
-                  Disconnect
-                </button>
+                <button onClick={disconnectWs} className="btn btn-danger btn-md">Disconnect</button>
               )}
             </div>
           </div>
 
-          {/* Push to Talk */}
-          <PushToTalk 
-            connected={connected} 
-            onSend={onSendAudio} 
-            onWarn={(m) => setLogs((l) => [m, ...l])} 
-          />
+          {/* Push to Talk + Centered Waveform */}
+          <div style={{ display: 'grid', placeItems: 'center' }}>
+            <PushToTalk 
+              connected={connected} 
+              onSend={onSendAudio} 
+              onWarn={(m) => setLogs((l) => [m, ...l])} 
+            />
+          </div>
+
+          {/* Toolbar (removed per request) */}
         </div>
 
         {/* Conversation */}
-        <div className="content-section" style={{ minHeight: '600px', display: 'flex', flexDirection: 'column' }}>
-          <h2 className="section-title">
-            💬 Live Conversation
-          </h2>
+        <div className="content-section" style={{ minHeight: 600, display: 'flex', flexDirection: 'column' }}>
+          <div className="card-header">
+            <h2 className="card-title">
+              <Image src="/assistant.svg" alt="" width={18} height={18} />
+              Live Conversation
+            </h2>
+          </div>
 
           {/* Streaming Response */}
           {partial && (
-            <div className="card" style={{ 
-              border: '2px solid var(--info)',
-              background: 'rgba(59, 130, 246, 0.02)',
-              marginBottom: '20px'
-            }}>
-              <div style={{ 
-                padding: '16px',
-                borderBottom: '1px solid rgba(59, 130, 246, 0.1)',
-                background: 'rgba(59, 130, 246, 0.02)'
-              }}>
-                <h3 style={{ 
-                  margin: 0,
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  color: 'var(--info)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  <div className="pulse-dot" style={{ background: 'var(--info)' }}></div>
-                  🤖 AI Assistant Responding
+            <div className="card" style={{ border: '2px solid var(--info)', background: 'rgba(59,130,246,0.02)', margin: 16 }}>
+              <div className="card-header" style={{ borderBottomColor: 'rgba(59,130,246,0.15)', background: 'rgba(59,130,246,0.02)' }}>
+                <h3 className="card-title" style={{ color: 'var(--info)' }}>
+                  <span className="pulse-dot" style={{ background: 'var(--info)' }}></span>
+                  AI Assistant Responding
                 </h3>
               </div>
-              <div style={{ padding: '16px' }}>
-                <div style={{ 
-                  color: 'var(--text-primary)', 
-                  lineHeight: '1.6',
-                  fontSize: '15px'
-                }}>
-                  {partial}
-                </div>
+              <div style={{ padding: 16, color: 'var(--text-primary)', lineHeight: 1.6, fontSize: 15 }}>
+                {partial}
               </div>
             </div>
           )}
           
           {/* Conversation History */}
-          <div style={{ 
-            flex: 1,
-            overflowY: 'auto',
-            maxHeight: '500px'
-          }}>
+          <div className="scroll-area" style={{ flex: 1, padding: 16 }}>
             {logs.length === 0 ? (
-              <div style={{ 
-                textAlign: 'center', 
-                color: 'var(--text-muted)', 
-                fontSize: '15px',
-                marginTop: '80px'
-              }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>🎙️</div>
-                <h4 style={{ 
-                  marginBottom: '8px', 
-                  color: 'var(--text-secondary)',
-                  fontWeight: '600'
-                }}>
-                  Ready to Start
-                </h4>
-                <p>Connect and use the voice assistant to begin your conversation</p>
+              <div className="empty-state" style={{ marginTop: 40 }}>
+                <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>🎙️</div>
+                <h4 style={{ marginBottom: 8, color: 'var(--text-secondary)', fontWeight: 600 }}>Ready to Start</h4>
+                <p style={{ fontSize: 14 }}>Connect and use the voice assistant to begin your conversation</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {logs.map((log, i) => (
-                  <div 
-                    key={i} 
-                    className="card"
-                    style={{ 
-                      padding: '12px 16px',
-                      background: log.startsWith('User:') 
-                        ? 'var(--gray-50)'
-                        : log.startsWith('Assistant:') 
-                        ? 'var(--bg-primary)'
-                        : 'var(--gray-50)',
-                      border: `1px solid ${
-                        log.startsWith('User:') ? 'var(--border-medium)' :
-                        log.startsWith('Assistant:') ? 'var(--border-light)' :
-                        'var(--border-light)'
-                      }`,
-                      color: 'var(--text-primary)',
-                      fontSize: '14px',
-                      lineHeight: '1.5',
-                      animation: 'fadeInUp 0.3s ease-out'
-                    }}
-                  >
-                    {log}
-                  </div>
-                ))}
+              <div className="chat-container">
+                {logs.map((log, i) => {
+                  const isUser = log.startsWith('User:');
+                  const isAssistant = log.startsWith('Assistant:');
+                  const isEvent = !isUser && !isAssistant;
+                  return (
+                    <div key={i} className={`chat-row ${isUser ? 'user' : isAssistant ? 'assistant' : 'event'}`}>
+                      {!isUser && (
+                        <div className="chat-avatar">
+                          {isAssistant ? '🤖' : '🛈'}
+                        </div>
+                      )}
+                      <div className={`chat-bubble ${isUser ? 'bubble-user' : isAssistant ? 'bubble-assistant' : 'bubble-event'}`}>
+                        {log}
+                        <div className="chat-actions">
+                          {/* future quick actions: copy, retry, etc. */}
+                        </div>
+                      </div>
+                      {isUser && (
+                        <div className="chat-avatar">🧑</div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
