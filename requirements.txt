@@ -1,0 +1,12 @@
+fastapi 
+uvicorn 
+torchaudio 
+pyannote.audio 
+openai-whisper 
+pydantic
+huggingface_hub
+pymongo
+python-dotenv
+webrtcvad
+httpx
+groq
