@@ -19,8 +19,7 @@ import torch
 # pyannote
 from pyannote.audio import Pipeline, Inference
 
-from huggingface_hub import login
-login("[REMOVED]")
+
 
 # ASR (whisper)
 import whisper
