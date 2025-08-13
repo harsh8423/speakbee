@@ -73,22 +73,99 @@ export default function PushToTalk({ connected, onSend, onWarn }) {
   }, [recording, onSend, onWarn]);
 
   return (
-    <div style={{ display: "flex", gap: 16, alignItems: "center", background: '#f7f9fb', padding: 16, borderRadius: 12, border: '1px solid #e5eaf0' }}>
-      <button
-        onMouseDown={startRecording}
-        onMouseUp={stopRecording}
-        onMouseLeave={stopRecording}
-        onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
-        onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
-        style={{ width: 140, height: 140, borderRadius: "50%", border: "none", background: recording ? "#d32f2f" : (connected ? "#1976d2" : '#9e9e9e'), color: "white", fontSize: 18, cursor: connected ? "pointer" : 'not-allowed' }}
-        disabled={!connected}
-      >
-        {recording ? "Release to Send" : "Hold to Talk"}
-      </button>
-      <div style={{ fontSize: 13, color: "#445" }}>
-        <div>Hold the mic button, speak, and release. Client trims silence; backend verifies once</div>
-        <div style={{ marginTop: 6 }}>Project: <strong>speakBee</strong></div>
-        <div style={{ marginTop: 6, fontSize: 12, color: '#777' }}>Tip: Click Connect first. Your browser will speak the reply using free built‑in TTS.</div>
+    <div style={{ textAlign: 'center' }}>
+      {/* Main Voice Button */}
+      <div style={{ marginBottom: '24px' }}>
+        <button
+          onMouseDown={startRecording}
+          onMouseUp={stopRecording}
+          onMouseLeave={stopRecording}
+          onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+          onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
+          style={{
+            width: '160px',
+            height: '160px',
+            borderRadius: '50%',
+            border: 'none',
+            background: recording
+              ? 'linear-gradient(135deg, var(--danger) 0%, var(--danger-dark) 100%)'
+              : connected
+              ? 'var(--gradient-primary)'
+              : 'linear-gradient(135deg, var(--gray-400) 0%, var(--gray-500) 100%)',
+            color: 'white',
+            fontSize: '16px',
+            fontWeight: '700',
+            cursor: connected ? 'pointer' : 'not-allowed',
+            boxShadow: recording 
+              ? '0 0 40px rgba(239, 68, 68, 0.4), var(--shadow-xl)' 
+              : connected 
+              ? '0 0 30px rgba(0, 0, 0, 0.2), var(--shadow-lg)' 
+              : 'var(--shadow-md)',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            transform: recording ? 'scale(0.95)' : 'scale(1)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          disabled={!connected}
+          className={`${recording ? 'glowing' : ''} ${connected ? 'floating' : ''}`}
+        >
+          {/* Button Shine Effect */}
+          <div style={{
+            position: 'absolute',
+            top: '15%',
+            left: '15%',
+            right: '15%',
+            height: '25%',
+            background: 'rgba(255, 255, 255, 0.3)',
+            borderRadius: '50%',
+            pointerEvents: 'none',
+            opacity: recording ? 0.8 : 0.4
+          }}></div>
+          
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '8px',
+            position: 'relative',
+            zIndex: 1
+          }}>
+            <div style={{ fontSize: '32px' }}>
+              {recording ? '🔴' : connected ? '🎤' : '⏸️'}
+            </div>
+            <div style={{ fontSize: '12px', lineHeight: '1.2', textAlign: 'center', fontWeight: '600' }}>
+              {recording ? 'RELEASE TO SEND' : connected ? 'HOLD TO TALK' : 'DISCONNECTED'}
+            </div>
+          </div>
+        </button>
+      </div>
+
+      {/* Instructions Card */}
+      <div className="glass-card" style={{ 
+        padding: '20px',
+        fontSize: '14px',
+        color: 'var(--text-secondary)',
+        lineHeight: '1.6',
+        maxWidth: '300px',
+        margin: '0 auto'
+      }}>
+        <div style={{ marginBottom: '16px', fontWeight: '700', color: 'var(--text-primary)', fontSize: '16px' }}>
+          🎯 Voice Assistant Guide
+        </div>
+        <div style={{ marginBottom: '8px' }}>• Hold button and speak clearly</div>
+        <div style={{ marginBottom: '8px' }}>• Release when finished speaking</div>
+        <div style={{ marginBottom: '8px' }}>• AI responds with voice synthesis</div>
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '12px' }}>
+          💡 Connect first to enable voice interaction
+        </div>
+      </div>
+
+      {/* Status Indicator */}
+      <div style={{ marginTop: '20px' }}>
+        <div className={`status-indicator ${connected ? 'status-connected' : 'status-disconnected'}`}>
+          <div className="pulse-dot"></div>
+          {connected ? 'Ready to Record' : 'Connect First'}
+        </div>
       </div>
     </div>
   );

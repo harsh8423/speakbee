@@ -24,3 +24,11 @@ export async function enrollSpeaker(blob, name) {
   return res.json();
 }
 
+export async function processAudio(blob) {
+  const fd = new FormData();
+  fd.append('audio', blob, 'process.wav');
+  const res = await fetch(`${API_BASE}/process`, { method: 'POST', body: fd });
+  if (!res.ok) throw new Error('Failed to process audio');
+  return res.json();
+}
+
