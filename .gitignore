@@ -1,8 +1,1 @@
-import os
-from dotenv import load_dotenv
-load_dotenv()
-
-from huggingface_hub import login
-hf_token = os.getenv("HF_TOKEN")
-if hf_token:
-	login(hf_token)
+.env
