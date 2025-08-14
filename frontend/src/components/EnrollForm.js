@@ -1,5 +1,6 @@
 "use client";
 import React, { useCallback, useRef, useState } from "react";
+import Image from "next/image";
 import { enrollSpeaker } from "../lib/api";
 import { loadVAD, mergeFloat32, downsampleFloat32, encodeWavPCM16, rms } from "../lib/audio";
 
@@ -107,25 +108,28 @@ export default function EnrollForm({ onEnrolled }) {
 
   return (
     <form onSubmit={submit} style={{ border: '1px solid #e5eaf0', borderRadius: 12, padding: 16, background: '#fcfdff' }}>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Enroll a Speaker</div>
+      <div style={{ fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Image src="/users.svg" alt="" width={16} height={16} />
+        Enroll a Speaker
+      </div>
       <div style={{ display: 'grid', gap: 8 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input type="file" accept="audio/wav" ref={fileRef} style={{ flex: '1 1 auto' }} />
-          <input placeholder="Speaker name" value={name} onChange={(e) => setName(e.target.value)} style={{ flex: '1 1 200px', padding: 8, borderRadius: 8, border: '1px solid #ccd6e0' }} />
-          <button disabled={busy} type="submit" style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #1976d2', background: '#1976d2', color: '#fff', cursor: 'pointer' }}>
+          <input type="file" accept="audio/wav" ref={fileRef} className="form-input" style={{ flex: '1 1 auto' }} />
+          <input placeholder="Speaker name" value={name} onChange={(e) => setName(e.target.value)} className="form-input" style={{ flex: '1 1 200px' }} />
+          <button disabled={busy} type="submit" className="btn btn-success btn-sm">
             {busy ? 'Enrolling…' : 'Enroll'}
           </button>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {!recording ? (
-            <button type="button" onClick={startRec} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #2e7d32', background: '#2e7d32', color: '#fff', cursor: 'pointer' }}>Start Recording</button>
+            <button type="button" onClick={startRec} className="btn btn-secondary btn-sm">Start Recording</button>
           ) : (
-            <button type="button" onClick={stopRec} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #c62828', background: '#c62828', color: '#fff', cursor: 'pointer' }}>Stop Recording</button>
+            <button type="button" onClick={stopRec} className="btn btn-danger btn-sm">Stop Recording</button>
           )}
           {recordedBlob && (
             <>
               <audio controls src={previewUrl} style={{ height: 32 }} />
-              <button type="button" onClick={clearRecording} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #757575', background: '#757575', color: '#fff', cursor: 'pointer' }}>Clear</button>
+              <button type="button" onClick={clearRecording} className="btn btn-outline btn-sm">Clear</button>
             </>
           )}
         </div>

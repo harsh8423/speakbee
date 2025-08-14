@@ -1,231 +1,190 @@
 "use client";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { WS_URL } from "../lib/api";
-import PushToTalk from "../components/PushToTalk";
-import EnrollForm from "../components/EnrollForm";
-import EnrollmentList from "../components/EnrollmentList";
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import Layout from "../components/Layout";
+import { useConnection } from "../contexts/ConnectionContext";
 
-// Audio helpers moved to components/lib
-
-export default function Page() {
-  const [connected, setConnected] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [logs, setLogs] = useState([]);
-  const [partial, setPartial] = useState("");
-  const [speaker, setSpeaker] = useState(null);
-
-  const wsRef = useRef(null);
-  const ctxRef = useRef(null);
-  const srcRef = useRef(null);
-  const procRef = useRef(null);
-  const streamRef = useRef(null);
-  const buffersRef = useRef([]);
-  const inputRateRef = useRef(16000);
-
-  const wsUrl = useMemo(() => {
-    return WS_URL || `ws://${location.hostname}:8000/ws/stream`;
-  }, []);
-
-  const connectWs = useCallback(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
-    const ws = new WebSocket(wsUrl);
-    ws.binaryType = "arraybuffer";
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => {
-      setConnected(false);
-      setSpeaker(null);
-    };
-    ws.onerror = () => setConnected(false);
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === "event") {
-          setLogs((l) => [`[${msg.event}] ${msg.text || ""}`, ...l]);
-          if (msg.event === "known_speaker") {
-            // event also comes as its own object below; keep both paths safe
-          }
-        } else if (msg.type === "transcript") {
-          setLogs((l) => [`User: ${msg.text}`, ...l]);
-        } else if (msg.type === "ai_delta") {
-          setPartial((p) => p + msg.text);
-        } else if (msg.type === "ai_done") {
-          const text = msg.text || partial;
-          setPartial("");
-          if (text) {
-            setLogs((l) => [`Assistant: ${text}`, ...l]);
-            if ("speechSynthesis" in window) {
-              const utter = new SpeechSynthesisUtterance(text);
-              speechSynthesis.speak(utter);
-            }
-          }
-        } else if (msg.type === "event" && msg.event === "known_speaker") {
-          // Some servers send as event; ours also sends a dedicated object; handle both.
-        } else if (msg.event === "known_speaker" || msg.type === "known_speaker") {
-          const name = msg.name || null;
-          const score = typeof msg.score === "number" ? msg.score.toFixed(3) : undefined;
-          setSpeaker(name ? `${name}${score ? ` (${score})` : ""}` : null);
-        }
-      } catch {
-        // ignore binary
-      }
-    };
-    wsRef.current = ws;
-  }, [wsUrl, partial]);
-
-  const disconnectWs = useCallback(() => {
-    try {
-      wsRef.current?.close();
-    } catch {}
-    setConnected(false);
-    setSpeaker(null);
-  }, []);
-
-  const onSendAudio = useCallback((wavBuf) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(wavBuf);
-      setLogs((l) => ["[sent utterance]", ...l]);
-    } else {
-      setLogs((l) => ["[ws not connected]", ...l]);
-    }
-  }, []);
-
-  const startRecording = useCallback(async () => {
-    if (!connected) {
-      setLogs((l) => ["[not connected] click Connect first", ...l]);
-      return;
-    }
-    if (recording) return;
-
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
-    streamRef.current = stream;
-
-    const ctx = new AudioContext({ sampleRate: 48000 });
-    inputRateRef.current = ctx.sampleRate;
-    const src = ctx.createMediaStreamSource(stream);
-    const proc = ctx.createScriptProcessor(4096, 1, 1);
-    src.connect(proc);
-    proc.connect(ctx.destination);
-    buffersRef.current = [];
-
-    proc.onaudioprocess = (ev) => {
-      const ch0 = ev.inputBuffer.getChannelData(0);
-      buffersRef.current.push(new Float32Array(ch0));
-    };
-
-    ctxRef.current = ctx;
-    srcRef.current = src;
-    procRef.current = proc;
-    setRecording(true);
-  }, [connected, recording]);
-
-  const stopRecording = useCallback(async () => {
-    if (!recording) return;
-
-    try {
-      procRef.current?.disconnect();
-      srcRef.current?.disconnect();
-      await ctxRef.current?.close();
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-    } catch {}
-
-    const merged = mergeFloat32(buffersRef.current);
-    buffersRef.current = [];
-
-    // Optional: client-side VAD trim (WASM). If not available, fall back to RMS gating.
-    let trimmed = merged;
-    try {
-      const mod = await loadVAD();
-      if (mod && mod.trimBuffer) {
-        // Example API if your chosen VAD lib exposes a trim function.
-        // Adjust based on the actual library you install.
-        trimmed = await mod.trimBuffer(merged, inputRateRef.current, { aggressiveness: 2 });
-      } else {
-        // Simple energy gate fallback
-        const energy = rms(merged);
-        if (energy < 0.001) {
-          setLogs((l) => ["[discarded: silence]", ...l]);
-          setRecording(false);
-          return;
-        }
-      }
-    } catch {
-      const energy = rms(merged);
-      if (energy < 0.001) {
-        setLogs((l) => ["[discarded: silence]", ...l]);
-        setRecording(false);
-        return;
-      }
-    }
-
-    const ds = downsampleFloat32(trimmed, inputRateRef.current, 16000);
-    const wavBuf = encodeWavPCM16(ds, 16000);
-
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(wavBuf);
-      setLogs((l) => ["[sent utterance]", ...l]);
-    } else {
-      setLogs((l) => ["[ws not connected]", ...l]);
-    }
-    setRecording(false);
-  }, [recording]);
+export default function Dashboard() {
+  const { connected, speaker, logs, connectWs, disconnectWs } = useConnection();
+  const [stats, setStats] = useState({
+    totalSpeakers: 0,
+    totalSessions: 0,
+    totalAnalyses: 0
+  });
 
   useEffect(() => {
-    return () => {
+    // Load real stats from API and localStorage
+    const loadStats = async () => {
       try {
-        procRef.current?.disconnect();
-        srcRef.current?.disconnect();
-        ctxRef.current?.close();
-        streamRef.current?.getTracks().forEach((t) => t.stop());
-        wsRef.current?.close();
-      } catch {}
+        // Load speakers count
+        const enrollments = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_HTTP_URL || 'http://127.0.0.1:8000'}/enrollments`);
+        if (enrollments.ok) {
+          const data = await enrollments.json();
+          setStats(prev => ({
+            ...prev,
+            totalSpeakers: data.items?.length || 0
+          }));
+        }
+        
+        // Load analyses count from localStorage
+        const savedResults = JSON.parse(localStorage.getItem('speakbee-results') || '[]');
+        setStats(prev => ({
+          ...prev,
+          totalAnalyses: savedResults.length,
+          totalSessions: logs.length
+        }));
+      } catch (error) {
+        console.log('Could not load stats:', error);
+      }
     };
-  }, []);
+
+    loadStats();
+
+    // Cleanup handled by ConnectionProvider
+  }, [logs.length]);
 
   return (
-    <div style={{ maxWidth: 900, margin: "32px auto", padding: 16, fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial' }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: '#ffd54f', display: 'grid', placeItems: 'center', fontWeight: 800, color: '#222' }}>🐝</div>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 700 }}>speakBee</div>
-            <div style={{ fontSize: 12, color: '#666' }}>Push‑to‑Talk Voice Assistant</div>
+    <Layout>
+      <div className="page-header">
+        <div className="brand-watermark"><Image src="/bee.svg" alt="" width={90} height={90} /></div>
+        <h1 className="page-title">
+          <Image src="/bee.svg" alt="" width={28} height={28} />
+          Dashboard
+        </h1>
+        <p className="page-subtitle">
+          Overview of your AI voice intelligence platform
+        </p>
+      </div>
+
+      <div className="page-content" style={{ display: 'grid', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr', gap: '24px' }}>
+          {/* Connection Overview */}
+          <div className="content-section">
+            <h2 className="section-title"><Image src="/cpu.svg" alt="" width={16} height={16} /> Backend Connection</h2>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div className={`status-indicator ${connected ? 'status-connected' : 'status-disconnected'}`}>
+                  <div className="pulse-dot"></div>
+                  {connected ? 'Connected to Backend' : 'Disconnected from Backend'}
+                </div>
+                {speaker && (
+                  <div className="badge badge-info">🎤 {speaker}</div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                {!connected ? (
+                  <button onClick={connectWs} className="btn btn-primary">🔌 Connect</button>
+                ) : (
+                  <button onClick={disconnectWs} className="btn btn-danger">🔌 Disconnect</button>
+                )}
+              </div>
+            </div>
+            <div className="card" style={{ border: '1px solid var(--border-light)', background: connected ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)' }}>
+              <div style={{ padding: 16 }}>
+                <div style={{ fontWeight: 700, marginBottom: 6, color: connected ? 'var(--success-dark)' : 'var(--danger-dark)' }}>
+                  {connected ? '✅ Connection Established' : '❌ Connection Required'}
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  {connected
+                    ? 'Services are online and ready for voice interactions, audio processing, and speaker recognition.'
+                    : 'Click Connect to enable voice assistant, audio analysis, and speaker management.'}
+                </div>
+              </div>
+            </div>
+            {logs.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)' }}>Recent Activity</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
+                  {logs.map((log, i) => (
+                    <div key={i} className="card" style={{ padding: '8px 12px', background: 'var(--gray-50)', border: '1px solid var(--border-light)', fontSize: 12, color: 'var(--text-secondary)' }}>
+                      {log}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Quick Actions */}
+          <div className="content-section">
+            <h2 className="section-title"><Image src="/tips.svg" alt="" width={16} height={16} /> Quick Actions</h2>
+            <div className="qa-grid">
+              <Link href="/voice-assistant" className="qa-card qa-voice">
+                <div className="qa-icon"><Image src="/mic.svg" alt="" width={22} height={22} /></div>
+                <div className="qa-content">
+                  <div className="qa-title">Start Voice Chat</div>
+                  <div className="qa-sub">Realtime conversation with AI</div>
+                </div>
+                <div className="qa-arrow">→</div>
+              </Link>
+              <Link href="/audio-analysis" className="qa-card qa-analysis">
+                <div className="qa-icon"><Image src="/wave.svg" alt="" width={22} height={22} /></div>
+                <div className="qa-content">
+                  <div className="qa-title">Analyze Audio</div>
+                  <div className="qa-sub">Diarization and transcription</div>
+                </div>
+                <div className="qa-arrow">→</div>
+              </Link>
+              <Link href="/speaker-management" className="qa-card qa-speakers">
+                <div className="qa-icon"><Image src="/users.svg" alt="" width={22} height={22} /></div>
+                <div className="qa-content">
+                  <div className="qa-title">Manage Speakers</div>
+                  <div className="qa-sub">Enroll and maintain profiles</div>
+                </div>
+                <div className="qa-arrow">→</div>
+              </Link>
+              <Link href="/results" className="qa-card qa-results">
+                <div className="qa-icon"><Image src="/chart.svg" alt="" width={22} height={22} /></div>
+                <div className="qa-content">
+                  <div className="qa-title">View Results</div>
+                  <div className="qa-sub">Browse saved analyses</div>
+                </div>
+                <div className="qa-arrow">→</div>
+              </Link>
+            </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#666' }}>
-            <span style={{ width: 10, height: 10, borderRadius: 6, background: connected ? '#43a047' : '#e53935', display: 'inline-block' }}></span>
-            {connected ? 'Connected' : 'Disconnected'} {speaker ? `· ${speaker}` : ''}
-          </span>
-          {!connected ? (
-            <button onClick={connectWs} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #1976d2', background: '#1976d2', color: '#fff', cursor: 'pointer' }}>Connect</button>
-          ) : (
-            <button onClick={disconnectWs} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #b71c1c', background: '#b71c1c', color: '#fff', cursor: 'pointer' }}>Disconnect</button>
-          )}
-        </div>
-      </header>
 
-      <PushToTalk connected={connected} onSend={onSendAudio} onWarn={(m) => setLogs((l) => [m, ...l])} />
-
-      {!!partial && (
-        <div style={{ marginTop: 16, padding: 10, background: "#eef", borderRadius: 8, border: '1px solid #cfd8dc' }}>
-          <strong>Assistant (streaming):</strong> {partial}
-        </div>
-      )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
-        <div>
-          <h4 style={{ margin: 0, marginBottom: 8 }}>Conversation</h4>
-          <div style={{ height: 320, overflowY: "auto", border: "1px solid #e0e0e0", borderRadius: 10, padding: 12, background: "#fafafa" }}>
-            {logs.map((l, i) => (
-              <div key={i} style={{ marginBottom: 6 }}>{l}</div>
-            ))}
+        {/* KPIs */}
+        <div className="kpi-grid">
+          <div className="stat-card">
+            <div className="stat-number">{stats.totalSpeakers}</div>
+            <div className="stat-label">Enrolled Speakers</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-number">{stats.totalSessions}</div>
+            <div className="stat-label">Voice Sessions</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-number">{stats.totalAnalyses}</div>
+            <div className="stat-label">Audio Analyses</div>
           </div>
         </div>
-        <div style={{ display: 'grid', gap: 16 }}>
-          <EnrollForm onEnrolled={(res) => setLogs((l) => [`[enrolled] ${res.name} (${res.speaker_id})`, ...l])} />
-          <EnrollmentList />
+
+        {/* System Status */}
+        <div className="content-section">
+          <h2 className="section-title"><Image src="/output.svg" alt="" width={16} height={16} /> System Status</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 16 }}>
+            <div style={{ textAlign: 'center' }}>
+              <div className={`badge ${connected ? 'badge-success' : 'badge-danger'}`} style={{ marginBottom: 8 }}>{connected ? '✅' : '❌'} Backend</div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{connected ? 'Connected' : 'Disconnected'}</p>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div className={`badge ${connected ? 'badge-success' : 'badge-warning'}`} style={{ marginBottom: 8 }}>{connected ? '✅' : '⚠️'} Audio Processing</div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{connected ? 'Ready' : 'Waiting'}</p>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div className={`badge ${connected ? 'badge-success' : 'badge-warning'}`} style={{ marginBottom: 8 }}>{connected ? '✅' : '⚠️'} Voice Recognition</div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{connected ? 'Active' : 'Standby'}</p>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div className={`badge ${connected ? 'badge-success' : 'badge-warning'}`} style={{ marginBottom: 8 }}>{connected ? '✅' : '⚠️'} Speaker Diarization</div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{connected ? 'Available' : 'Offline'}</p>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </Layout>
   );
 }
